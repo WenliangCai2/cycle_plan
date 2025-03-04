@@ -5,10 +5,11 @@ const Map = (props) => {
     const mapRef = useRef(null);
     const map = useRef(null);
     const platform = useRef(null);
-    const { apikey, userPosition, restaurantPosition } = props;
+    const { apikey, userPosition, selectedLocations } = props;
 
     useEffect(() => {
         if (!map.current) {
+            // Initialize map
             platform.current = new H.service.Platform({ apikey });
             const defaultLayers = platform.current.createDefaultLayers({ pois: true });
             const newMap = new H.Map(
@@ -16,7 +17,7 @@ const Map = (props) => {
                 defaultLayers.vector.normal.map,
                 {
                     zoom: 14,
-                    center: userPosition, // ✅ 使用动态用户位置
+                    center: userPosition, // Use dynamic user locations
                 }
             );
 
@@ -25,15 +26,30 @@ const Map = (props) => {
             map.current = newMap;
         }
 
-        // ✅ 当餐厅位置变化时计算路线
-        if (restaurantPosition) {
-            calculateRoute(platform.current, map.current, userPosition, restaurantPosition);
+        // Routes are calculated when the selected location changes
+        if (selectedLocations.length > 0) {
+            calculateRoute(
+                platform.current,
+                map.current,
+                userPosition,
+                selectedLocations
+            );
+        } else {
+            // Clear all objects on the map
+            map.current?.removeObjects(map.current.getObjects());
+            // Add a default user location tag
+            map.current?.addObject(
+                new H.map.Marker(userPosition, {
+                    icon: getMarkerIcon('red')
+                })
+            );
         }
-    }, [apikey, userPosition, restaurantPosition]);
+    }, [apikey, userPosition, selectedLocations]);
 
     return <div style={{ width: '100%', height: '500px' }} ref={mapRef} />;
 };
 
+// Get tag icon
 function getMarkerIcon(color) {
     const svgCircle = `<svg width="20" height="20" version="1.1" xmlns="http://www.w3.org/2000/svg">
                 <g id="marker">
@@ -44,55 +60,69 @@ function getMarkerIcon(color) {
     });
 }
 
-function calculateRoute(platform, map, start, destination) {
-    function routeResponseHandler(response) {
+// Calculation route
+function calculateRoute(platform, map, start, waypoints) {
+    const router = platform.getRoutingService(null, 8);
+
+    // Define route parameters
+    const routingParams = {
+        origin: `${start.lat},${start.lng}`,
+        destination: `${waypoints[waypoints.length - 1].lat},${waypoints[waypoints.length - 1].lng}`,
+        transportMode: 'pedestrian',
+        return: 'polyline'
+    };
+
+    // If there are multiple path points, add the via parameter
+    if (waypoints.length > 1) {
+        routingParams.via = waypoints
+            .slice(0, -1) // Exclude the last point (end point)
+            .map(point => `${point.lat},${point.lng}`)
+            .join('!');
+    }
+
+    // Call routing service
+    router.calculateRoute(routingParams, (response) => {
         const sections = response.routes[0].sections;
-        const lineStrings = [];
-        sections.forEach((section) => {
-            // convert Flexible Polyline encoded string to geometry
-            lineStrings.push(H.geo.LineString.fromFlexiblePolyline(section.polyline));
-        });
+        const lineStrings = sections.map(section =>
+            H.geo.LineString.fromFlexiblePolyline(section.polyline)
+        );
         const multiLineString = new H.geo.MultiLineString(lineStrings);
         const bounds = multiLineString.getBoundingBox();
 
-        // Create the polyline for the route
+        // Create a route fold
         const routePolyline = new H.map.Polyline(multiLineString, {
             style: {
-                lineWidth: 5
+                lineWidth: 5,
+                strokeColor: 'rgba(0, 128, 255, 0.7)'
             }
         });
 
-        // Remove all the previous map objects, if any
+        // Clear all objects on the map
         map.removeObjects(map.getObjects());
-        // Add the polyline to the map
+
+        // Add route folds
         map.addObject(routePolyline);
-        map.addObjects([
-            // Add a marker for the user
-            new H.map.Marker(start, {
-                icon: getMarkerIcon('red')
-            }),
-            // Add a marker for the selected restaurant
-            new H.map.Marker(destination, {
-                icon: getMarkerIcon('green')
-            })
-        ]);
-        // Configure the map view to automatically zoom into the bounds
-        // encompassing markers and route polyline:
+
+        // Add tag
+        const markers = [
+            new H.map.Marker(start, { icon: getMarkerIcon('red') }) // 用户位置
+        ];
+        waypoints.forEach((point, index) => {
+            markers.push(
+                new H.map.Marker(point, {
+                    icon: getMarkerIcon(
+                        index === waypoints.length - 1 ? 'green' : 'blue' // 终点绿色，途径点蓝色
+                    )
+                })
+            );
+        });
+
+        // Add all tags to the map
+        map.addObjects(markers);
+
+        // Adjust the map perspective to include all marks and routes
         map.getViewModel().setLookAtData({ bounds });
-    }
-
-    // Get an instance of the H.service.RoutingService8 service
-    const router = platform.getRoutingService(null, 8);
-
-    // Define the routing service parameters
-    const routingParams = {
-        'origin': `${start.lat},${start.lng}`,
-        'destination': `${destination.lat},${destination.lng}`,
-        'transportMode': 'car',
-        'return': 'polyline'
-    };
-    // Call the routing service with the defined parameters
-    router.calculateRoute(routingParams, routeResponseHandler, console.error);
+    }, console.error);
 }
 
 export default Map;

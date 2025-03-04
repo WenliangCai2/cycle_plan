@@ -26,37 +26,35 @@ const restaurantList = [
 ];
 
 function App() {
-    const [restaurantPosition, setRestaurantPosition] = useState(null);
+    const [selectedRestaurants, setSelectedRestaurants] = useState([]);
 
-    const onClickHandler_ = (location) => {
-        setRestaurantPosition(location);
+    const handleRestaurantClick = (location) => {
+        setSelectedRestaurants(prev => {
+            const exists = prev.some(l => l.lat === location.lat && l.lng === location.lng);
+            return exists
+                ? prev.filter(l => !(l.lat === location.lat && l.lng === location.lng))
+                : [...prev, location];
+        });
     };
 
-    return ( <
-            div style = {
-            {
-                display: 'flex'
-            }
-        } >
-            <
-                RestaurantList list = {
-                restaurantList
-            }
-                               onClickHandler = {
-                                   onClickHandler_
-                               }
-            /> <
-            Map apikey = {
-            apikey
-        }
-                userPosition = {
-                    userPosition
-                }
-                restaurantPosition = {
-                    restaurantPosition
-                }
-        /> <
-        /div>
+    return (
+        <div style={{ display: 'flex' }}>
+            <div style={{ marginRight: '20px' }}>
+                <button onClick={() => setSelectedRestaurants([])}>
+                    clean
+                </button>
+                <RestaurantList
+                    list={restaurantList}
+                    selectedLocations={selectedRestaurants}
+                    onClickHandler={handleRestaurantClick}
+                />
+            </div>
+            <Map
+                apikey={apikey}
+                userPosition={userPosition}
+                selectedLocations={selectedRestaurants}
+            />
+        </div>
     );
 }
 
