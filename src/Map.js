@@ -5,7 +5,7 @@ const Map = (props) => {
     const mapRef = useRef(null);
     const map = useRef(null);
     const platform = useRef(null);
-    const { apikey, userPosition, selectedLocations } = props;
+    const { apikey, userPosition, selectedLocations, onMapClick, customPoints, restaurantList } = props;
 
     useEffect(() => {
         if (!map.current) {
@@ -21,10 +21,47 @@ const Map = (props) => {
                 }
             );
 
+            // Add map click event listener
+            newMap.addEventListener('tap', (evt) => {
+                const coord = newMap.screenToGeo(evt.currentPointer.viewportX, evt.currentPointer.viewportY);
+                console.log('Map clicked:', coord.lat, coord.lng); // 添加日志
+                if (onMapClick) {
+                    onMapClick(coord.lat, coord.lng);
+                }
+            });
+
             new H.mapevents.Behavior(new H.mapevents.MapEvents(newMap));
             H.ui.UI.createDefault(newMap, defaultLayers);
             map.current = newMap;
         }
+
+        // Clear all objects on the map
+        map.current?.removeObjects(map.current.getObjects());
+
+        // Add user position marker
+        map.current?.addObject(
+            new H.map.Marker(userPosition, {
+                icon: getMarkerIcon('red') // 用户位置
+            })
+        );
+
+        // Add predefined restaurant markers
+        restaurantList.forEach(restaurant => {
+            map.current?.addObject(
+                new H.map.Marker(restaurant.location, {
+                    icon: getMarkerIcon('blue') // 事先定义好的点
+                })
+            );
+        });
+
+        // Add custom points markers
+        customPoints.forEach(point => {
+            map.current?.addObject(
+                new H.map.Marker(point.location, {
+                    icon: getMarkerIcon('purple') // 自定义点
+                })
+            );
+        });
 
         // Routes are calculated when the selected location changes
         if (selectedLocations.length > 0) {
@@ -34,17 +71,8 @@ const Map = (props) => {
                 userPosition,
                 selectedLocations
             );
-        } else {
-            // Clear all objects on the map
-            map.current?.removeObjects(map.current.getObjects());
-            // Add a default user location tag
-            map.current?.addObject(
-                new H.map.Marker(userPosition, {
-                    icon: getMarkerIcon('red')
-                })
-            );
         }
-    }, [apikey, userPosition, selectedLocations]);
+    }, [apikey, userPosition, selectedLocations, customPoints, onMapClick, restaurantList]);
 
     return <div style={{ width: '100%', height: '500px' }} ref={mapRef} />;
 };
@@ -82,47 +110,53 @@ function calculateRoute(platform, map, start, waypoints) {
 
     // Call routing service
     router.calculateRoute(routingParams, (response) => {
-        const sections = response.routes[0].sections;
-        const lineStrings = sections.map(section =>
-            H.geo.LineString.fromFlexiblePolyline(section.polyline)
-        );
-        const multiLineString = new H.geo.MultiLineString(lineStrings);
-        const bounds = multiLineString.getBoundingBox();
-
-        // Create a route fold
-        const routePolyline = new H.map.Polyline(multiLineString, {
-            style: {
-                lineWidth: 5,
-                strokeColor: 'rgba(0, 128, 255, 0.7)'
-            }
-        });
-
-        // Clear all objects on the map
-        map.removeObjects(map.getObjects());
-
-        // Add route folds
-        map.addObject(routePolyline);
-
-        // Add tag
-        const markers = [
-            new H.map.Marker(start, { icon: getMarkerIcon('red') }) // 用户位置
-        ];
-        waypoints.forEach((point, index) => {
-            markers.push(
-                new H.map.Marker(point, {
-                    icon: getMarkerIcon(
-                        index === waypoints.length - 1 ? 'green' : 'blue' // 终点绿色，途径点蓝色
-                    )
-                })
+        if (response.routes && response.routes.length > 0) {
+            const sections = response.routes[0].sections;
+            const lineStrings = sections.map(section =>
+                H.geo.LineString.fromFlexiblePolyline(section.polyline)
             );
-        });
+            const multiLineString = new H.geo.MultiLineString(lineStrings);
+            const bounds = multiLineString.getBoundingBox();
 
-        // Add all tags to the map
-        map.addObjects(markers);
+            // Create a route fold
+            const routePolyline = new H.map.Polyline(multiLineString, {
+                style: {
+                    lineWidth: 5,
+                    strokeColor: 'rgba(0, 128, 255, 0.7)'
+                }
+            });
 
-        // Adjust the map perspective to include all marks and routes
-        map.getViewModel().setLookAtData({ bounds });
-    }, console.error);
+            // Clear all objects on the map
+            map.removeObjects(map.getObjects());
+
+            // Add route folds
+            map.addObject(routePolyline);
+
+            // Add tag
+            const markers = [
+                new H.map.Marker(start, { icon: getMarkerIcon('red') }) // 用户位置
+            ];
+            waypoints.forEach((point, index) => {
+                markers.push(
+                    new H.map.Marker(point, {
+                        icon: getMarkerIcon(
+                            index === waypoints.length - 1 ? 'green' : 'blue' // 终点绿色，途径点蓝色
+                        )
+                    })
+                );
+            });
+
+            // Add all tags to the map
+            map.addObjects(markers);
+
+            // Adjust the map perspective to include all marks and routes
+            map.getViewModel().setLookAtData({ bounds });
+        } else {
+            console.error('No routes found in the response:', response);
+        }
+    }, (error) => {
+        console.error('Error calculating route:', error);
+    });
 }
 
 export default Map;

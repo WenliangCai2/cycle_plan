@@ -14,7 +14,7 @@ function RestaurantEntity(props) {
         display: "inline-block",
         padding: "10px",
         margin: "5px",
-        border: "1px solid gray",
+        border: "1px solid #ddd",
         borderRadius: "5px",
         cursor: "pointer",
         backgroundColor: isSelected ? '#e3f2fd' : 'white', // the color when choose
@@ -28,10 +28,8 @@ function RestaurantEntity(props) {
     );
 }
 
-
 function RestaurantList(props) {
     const { list, selectedLocations, onClickHandler } = props;
-
 
     const restaurantEntries = list.map((entry) => {
         const isSelected = selectedLocations.some(
