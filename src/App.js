@@ -30,6 +30,28 @@ function App() {
     const [newPointName, setNewPointName] = useState(''); // Custom point name
     const [newPointLocation, setNewPointLocation] = useState({ lat: null, lng: null }); // Custom point location
 
+    const [savedRoutes, setSavedRoutes] = useState([]); // 新增：保存路线状态
+    const [routeName, setRouteName] = useState(''); // 新增：路线名称
+
+    // 新增：保存当前路线
+    const handleSaveRoute = (e) => {
+        e.preventDefault();
+        if (routeName && selectedRestaurants.length > 0) {
+            const newRoute = {
+                name: routeName,
+                locations: [...selectedRestaurants], // 复制当前选中的地点
+                createdAt: new Date().toISOString()
+            };
+            setSavedRoutes(prev => [...prev, newRoute]);
+            setRouteName('');
+        }
+    };
+
+    // 新增：加载保存的路线
+    const loadSavedRoute = (route) => {
+        setSelectedRestaurants(route.locations);
+    };
+
     // Handle restaurant click event
     const handleRestaurantClick = (location) => {
         setSelectedRestaurants(prev => {
@@ -75,9 +97,31 @@ function App() {
     return (
         <div style={{ display: 'flex', height: '100vh' }}>
             {/* Left Panel */}
-            <div style={{ width: '300px', padding: '20px', backgroundColor: '#f5f5f5', boxShadow: '2px 0 5px rgba(0, 0, 0, 0.1)' }}>
+            <div style={{
+                width: '300px',
+                padding: '20px',
+                backgroundColor: '#f5f5f5',
+                boxShadow: '2px 0 5px rgba(0, 0, 0, 0.1)'
+            }}>
+                <form onSubmit={handleSaveRoute} style={{marginBottom: '20px'}}>
+                    <h3 style={styles.heading}>Save Current Route</h3>
+                    <input
+                        type="text"
+                        placeholder="Route name"
+                        value={routeName}
+                        onChange={(e) => setRouteName(e.target.value)}
+                        style={styles.input}
+                        required
+                    />
+                    <button
+                        type="submit"
+                        style={styles.button}
+                    >
+                        Save Route
+                    </button>
+                </form>
                 {/* Add Custom Point Form */}
-                <form onSubmit={handleAddCustomPoint} style={{ marginBottom: '20px' }}>
+                <form onSubmit={handleAddCustomPoint} style={{marginBottom: '20px'}}>
                     <h3 style={styles.heading}>Add Custom Point</h3>
                     <input
                         type="text"
@@ -87,7 +131,7 @@ function App() {
                         style={styles.input}
                         required
                     />
-                    <div style={{ marginTop: '10px' }}>
+                    <div style={{marginTop: '10px'}}>
                         <span style={styles.label}>Click on the map to select location</span>
                         <div style={styles.locationDisplay}>
                             {newPointLocation.lat && newPointLocation.lng
@@ -120,7 +164,7 @@ function App() {
             </div>
 
             {/* Map Component */}
-            <div style={{ flex: 1 }}>
+            <div style={{flex: 1}}>
                 <Map
                     apikey={apikey}
                     userPosition={userPosition}
@@ -129,6 +173,24 @@ function App() {
                     customPoints={customPoints} // Pass custom points
                     restaurantList={restaurantList}
                 />
+            </div>
+            {/* 新增：保存的路线列表 */}
+            <div style={{ marginBottom: '20px' }}>
+                <h3 style={styles.heading}>Saved Routes</h3>
+                <div style={styles.savedRoutesList}>
+                    {savedRoutes.map(route => (
+                        <div
+                            key={route.createdAt}
+                            style={styles.routeItem}
+                            onClick={() => loadSavedRoute(route)}
+                        >
+                            <span>{route.name}</span>
+                            <small style={styles.dateText}>
+                                {new Date(route.createdAt).toLocaleDateString()}
+                            </small>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );
@@ -177,6 +239,24 @@ const styles = {
         fontSize: '14px',
         color: '#333',
     },
+    savedRoutesList: {
+        border: '1px solid #ddd',
+        borderRadius: '5px',
+        backgroundColor: '#fff',
+    },
+    routeItem: {
+        padding: '10px',
+        cursor: 'pointer',
+        borderBottom: '1px solid #eee',
+        '&:hover': {
+            backgroundColor: '#f8f9fa'
+        }
+    },
+    dateText: {
+        color: '#666',
+        fontSize: '0.8em',
+        marginLeft: '8px'
+    }
 };
 
 export default App;
